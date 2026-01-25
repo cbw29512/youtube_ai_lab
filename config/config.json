@@ -14,6 +14,7 @@
     "max_tokens": 500
   },
   "piper": {
+    "binary_path": "/home/chris/piper/piper/piper",
     "model_path": "/home/chris/piper-voices/en_US-lessac-medium.onnx",
     "output_format": "wav",
     "sample_rate": 22050
