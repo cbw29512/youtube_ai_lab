@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube AI Lab - Testing the Limits of AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 800px;
+            width: 90%;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .tagline {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-label {
+            font-weight: bold;
+        }
+        
+        .status-value {
+            font-family: monospace;
+        }
+        
+        .online {
+            color: #4ade80;
+        }
+        
+        .info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .info h2 {
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        
+        .info ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .info li {
+            padding: 8px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .info li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+        }
+        
+        .pulse {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #4ade80;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 YouTube AI Lab</h1>
+        <p class="tagline">Testing the Limits of AI</p>
+        
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label"><span class="pulse"></span>System Status:</span>
+                <span class="status-value online" id="status">Loading...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Version:</span>
+                <span class="status-value" id="version">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Timestamp:</span>
+                <span class="status-value" id="timestamp">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Ollama AI:</span>
+                <span class="status-value online" id="ollama">✓ Ready</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Piper TTS:</span>
+                <span class="status-value online" id="piper">✓ Ready</span>
+            </div>
+        </div>
+        
+        <div class="info">
+            <h2>Next Steps</h2>
+            <ul>
+                <li>Set up YouTube API credentials</li>
+                <li>Create first test video</li>
+                <li>Test Ollama AI integration</li>
+                <li>Test Piper TTS output</li>
+                <li>Build content generation engine</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // Fetch system status
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').textContent = data.status.toUpperCase();
+                document.getElementById('version').textContent = data.version;
+                document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+                document.getElementById('status').textContent = 'ERROR';
+                document.getElementById('status').classList.remove('online');
+            });
+    </script>
+</body>
+</html>
