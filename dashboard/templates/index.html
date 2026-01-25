@@ -3,181 +3,239 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube AI Lab - Testing the Limits of AI</title>
+    <title>YouTube AI Lab</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 20px;
             color: #fff;
         }
-        
-        .container {
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 2.5rem; margin-bottom: 10px; }
+        .tagline { text-align: center; font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9; }
+        .request-form {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            max-width: 800px;
-            width: 90%;
-        }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        
-        .tagline {
-            text-align: center;
-            font-size: 1.2rem;
+            border-radius: 15px;
+            padding: 30px;
             margin-bottom: 30px;
-            opacity: 0.9;
         }
-        
-        .status {
-            background: rgba(255, 255, 255, 0.2);
+        .request-form h2 { margin-bottom: 15px; }
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            min-height: 100px;
+        }
+        button {
+            background: #4ade80;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover { background: #22c55e; }
+        .btn-reject { background: #ef4444; }
+        .btn-reject:hover { background: #dc2626; }
+        .requests-list {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .request-item {
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 20px;
         }
-        
-        .status-item {
+        .request-header {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 10px;
         }
-        
-        .status-item:last-child {
-            border-bottom: none;
-        }
-        
-        .status-label {
+        .request-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
             font-weight: bold;
         }
-        
-        .status-value {
-            font-family: monospace;
-        }
-        
-        .online {
-            color: #4ade80;
-        }
-        
-        .info {
-            background: rgba(255, 255, 255, 0.1);
+        .status-pending { background: #fbbf24; color: #000; }
+        .status-processing { background: #3b82f6; color: #fff; }
+        .status-approved { background: #4ade80; color: #000; }
+        .request-text { font-size: 1.1rem; margin: 15px 0; }
+        .request-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-approve { background: #4ade80; flex: 1; }
+        .progress-container {
+            margin-top: 15px;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
+            padding: 15px;
         }
-        
-        .info h2 {
-            margin-bottom: 15px;
-            font-size: 1.5rem;
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
         }
-        
-        .info ul {
-            list-style: none;
-            padding-left: 0;
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
-        
-        .info li {
-            padding: 8px 0;
-            padding-left: 20px;
-            position: relative;
+        video {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 10px;
+            margin: 15px auto;
+            display: block;
         }
-        
-        .info li:before {
-            content: "→";
-            position: absolute;
-            left: 0;
-        }
-        
-        .pulse {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            background: #4ade80;
-            border-radius: 50%;
-            margin-right: 10px;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.3;
-            }
+        .script-text {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🤖 YouTube AI Lab</h1>
-        <p class="tagline">Testing the Limits of AI</p>
+        <p class="tagline">Request Approval System</p>
         
-        <div class="status">
-            <div class="status-item">
-                <span class="status-label"><span class="pulse"></span>System Status:</span>
-                <span class="status-value online" id="status">Loading...</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Version:</span>
-                <span class="status-value" id="version">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Timestamp:</span>
-                <span class="status-value" id="timestamp">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Ollama AI:</span>
-                <span class="status-value online" id="ollama">✓ Ready</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Piper TTS:</span>
-                <span class="status-value online" id="piper">✓ Ready</span>
-            </div>
+        <div class="request-form">
+            <h2>Submit Test Request</h2>
+            <textarea id="requestText" placeholder="Type a request..."></textarea>
+            <button onclick="submitRequest()">Submit Request</button>
         </div>
         
-        <div class="info">
-            <h2>Next Steps</h2>
-            <ul>
-                <li>Set up YouTube API credentials</li>
-                <li>Create first test video</li>
-                <li>Test Ollama AI integration</li>
-                <li>Test Piper TTS output</li>
-                <li>Build content generation engine</li>
-            </ul>
+        <div class="requests-list">
+            <h2>Requests Queue</h2>
+            <div id="requestsList">Loading...</div>
         </div>
     </div>
     
     <script>
-        // Fetch system status
-        fetch('/api/status')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('status').textContent = data.status.toUpperCase();
-                document.getElementById('version').textContent = data.version;
-                document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString();
+        console.log('🚀 App loaded');
+        const socket = io();
+        
+        socket.on('progress', (data) => {
+            updateProgress(data.request_id, data.progress, data.message);
+        });
+        
+        socket.on('video_complete', () => setTimeout(loadRequests, 500));
+        
+        function loadRequests() {
+            console.log('Loading requests...');
+            fetch('/api/requests')
+                .then(r => r.json())
+                .then(requests => {
+                    console.log('Loaded:', requests.length);
+                    const container = document.getElementById('requestsList');
+                    
+                    if (requests.length === 0) {
+                        container.innerHTML = '<p>No requests yet</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = requests.map(req => `
+                        <div class="request-item">
+                            <div class="request-header">
+                                <span>Request #${req.id}</span>
+                                <span class="request-status status-${req.status}">${req.status.toUpperCase()}</span>
+                            </div>
+                            <div class="request-text">${req.request_text}</div>
+                            
+                            ${req.status === 'pending' ? `
+                                <div class="request-actions">
+                                    <button class="btn-approve" onclick="approveRequest(${req.id})">✅ Approve & Generate</button>
+                                    <button class="btn-reject" onclick="deleteRequest(${req.id})">❌ Reject</button>
+                                </div>
+                            ` : ''}
+                            
+                            ${req.status === 'processing' ? `
+                                <div class="progress-container">
+                                    <div id="progress-msg-${req.id}">Processing...</div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" id="progress-${req.id}" style="width: ${req.progress}%">${req.progress}%</div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${req.video_path ? `
+                                <video controls><source src="/videos/${req.video_path}" type="video/mp4"></video>
+                                ${req.script ? `<div class="script-text">📝 ${req.script}</div>` : ''}
+                                <button class="btn-reject" onclick="deleteRequest(${req.id})">🗑️ Delete</button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                });
+        }
+        
+        function updateProgress(id, progress, msg) {
+            const fill = document.getElementById(`progress-${id}`);
+            const msgEl = document.getElementById(`progress-msg-${id}`);
+            if (fill) {
+                fill.style.width = progress + '%';
+                fill.textContent = progress + '%';
+            }
+            if (msgEl) msgEl.textContent = msg;
+        }
+        
+        function submitRequest() {
+            const text = document.getElementById('requestText').value.trim();
+            if (!text) return alert('Enter a request');
+            
+            console.log('Submitting:', text);
+            fetch('/api/requests', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({request_text: text})
             })
-            .catch(error => {
-                console.error('Error fetching status:', error);
-                document.getElementById('status').textContent = 'ERROR';
-                document.getElementById('status').classList.remove('online');
+            .then(r => r.json())
+            .then(() => {
+                document.getElementById('requestText').value = '';
+                loadRequests();
             });
+        }
+        
+        function approveRequest(id) {
+            console.log('APPROVING:', id);
+            fetch(`/api/requests/${id}/approve`, {method: 'POST'})
+                .then(r => {
+                    console.log('Response status:', r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    console.log('Approved!', data);
+                    loadRequests();
+                })
+                .catch(err => console.error('ERROR:', err));
+        }
+        
+        function deleteRequest(id) {
+            console.log('DELETING:', id);
+            fetch(`/api/requests/${id}/delete`, {method: 'POST'})
+                .then(() => loadRequests());
+        }
+        
+        loadRequests();
+        setInterval(loadRequests, 30000);
     </script>
 </body>
 </html>
