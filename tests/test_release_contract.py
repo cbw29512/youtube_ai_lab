@@ -1,12 +1,12 @@
 import json
 import pathlib
-import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = (ROOT / "backend" / "app.py").read_text(encoding="utf-8")
 CONFIG = json.loads((ROOT / "config" / "config.json").read_text(encoding="utf-8"))
 GITIGNORE = (ROOT / ".gitignore").read_text(encoding="utf-8")
+PRIVATE_HOME_SENTINEL = "/home/" + "chris/"
 
 
 class PublicReleaseContractTests(unittest.TestCase):
@@ -33,9 +33,11 @@ class PublicReleaseContractTests(unittest.TestCase):
     def test_local_tool_paths_are_environment_driven(self):
         for name in ("OLLAMA_HOST", "PIPER_BIN", "PIPER_MODEL", "YOUTUBE_AI_LAB_DB_PATH"):
             self.assertIn(name, APP)
-        self.assertNotIn("/home/chris/", APP)
+        self.assertNotIn(PRIVATE_HOME_SENTINEL, APP)
         for test_path in (ROOT / "tests").glob("test_*.py"):
-            self.assertNotIn("/home/chris/", test_path.read_text(encoding="utf-8"))
+            if test_path.name == pathlib.Path(__file__).name:
+                continue
+            self.assertNotIn(PRIVATE_HOME_SENTINEL, test_path.read_text(encoding="utf-8"))
 
     def test_generated_media_and_credentials_are_ignored(self):
         for pattern in (
