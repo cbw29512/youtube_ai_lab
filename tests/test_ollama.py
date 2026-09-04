@@ -1,65 +1,41 @@
-"""Test Ollama AI Integration"""
-import requests
-import json
+"""Optional local Ollama integration tests.
 
-OLLAMA_HOST = "http://localhost:11434"
+These tests are skipped in normal CI. Set YOUTUBE_AI_LAB_RUN_LOCAL_AI_TESTS=1
+when a trusted local Ollama service is available.
+"""
+
+import os
+
+import pytest
+import requests
+
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b-instruct-q4_0")
+RUN_LOCAL = os.environ.get("YOUTUBE_AI_LAB_RUN_LOCAL_AI_TESTS") == "1"
+
+pytestmark = pytest.mark.skipif(
+    not RUN_LOCAL,
+    reason="requires opt-in local Ollama service",
+)
+
 
 def test_ollama_connection():
-    """Test if Ollama is responding"""
-    try:
-        response = requests.get(f"{OLLAMA_HOST}/api/tags")
-        if response.status_code == 200:
-            models = response.json()
-            print("✅ Ollama is running!")
-            print(f"📦 Available models: {len(models.get('models', []))}")
-            for model in models.get('models', []):
-                print(f"   - {model['name']}")
-            return True
-        else:
-            print("❌ Ollama responded but with error")
-            return False
-    except Exception as e:
-        print(f"❌ Cannot connect to Ollama: {e}")
-        return False
+    response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+    response.raise_for_status()
+    payload = response.json()
+    assert isinstance(payload.get("models", []), list)
+
 
 def test_ollama_generate():
-    """Test AI text generation"""
-    print("\n🤖 Testing AI generation...")
-    
-    prompt = "Write a 10-word YouTube video title about AI testing limits"
-    
-    payload = {
-        "model": "llama3.2:3b-instruct-q4_0",
-        "prompt": prompt,
-        "stream": False
-    }
-    
-    try:
-        response = requests.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json=payload,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            generated_text = result.get('response', '')
-            print(f"✅ AI Response: {generated_text.strip()}")
-            return True
-        else:
-            print(f"❌ Generation failed: {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error during generation: {e}")
-        return False
-
-if __name__ == "__main__":
-    print("="*60)
-    print("OLLAMA AI INTEGRATION TEST")
-    print("="*60)
-    
-    if test_ollama_connection():
-        test_ollama_generate()
-    
-    print("\n" + "="*60)
+    response = requests.post(
+        f"{OLLAMA_HOST}/api/generate",
+        json={
+            "model": OLLAMA_MODEL,
+            "prompt": "Write a short title about testing AI limits.",
+            "stream": False,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    generated = response.json().get("response", "").strip()
+    assert generated

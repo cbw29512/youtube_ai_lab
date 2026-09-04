@@ -1,65 +1,40 @@
-"""Test Piper TTS Integration"""
-import subprocess
+"""Optional local Piper TTS integration test.
+
+Skipped in normal CI. Set YOUTUBE_AI_LAB_RUN_LOCAL_TTS_TESTS=1 together with
+PIPER_BIN and PIPER_MODEL when testing a trusted local Piper installation.
+"""
+
 import os
+import subprocess
 
-# Correct path to Piper TTS
-PIPER_BIN = "/home/chris/piper/piper/piper"
-PIPER_MODEL = "/home/chris/piper-voices/en_US-lessac-medium.onnx"
-OUTPUT_DIR = "data/audio/cache"
+import pytest
 
-def test_piper_tts():
-    """Test Piper text-to-speech"""
-    print("="*60)
-    print("PIPER TTS INTEGRATION TEST")
-    print("="*60)
-    
-    # Check if Piper exists
-    if not os.path.exists(PIPER_BIN):
-        print(f"❌ Piper not found at: {PIPER_BIN}")
-        return False
-    
-    # Check if model exists
-    if not os.path.exists(PIPER_MODEL):
-        print(f"❌ Model not found at: {PIPER_MODEL}")
-        return False
-    
-    # Create output directory
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    # Test text
-    text = "Hello from YouTube AI Lab. This is a test of the text to speech system."
-    output_file = f"{OUTPUT_DIR}/test_output.wav"
-    
-    print(f"\n🎤 Generating speech...")
-    print(f"📝 Text: {text}")
-    
-    try:
-        # Run Piper with correct syntax
-        process = subprocess.Popen(
-            [PIPER_BIN, '--model', PIPER_MODEL, '--output_file', output_file],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        stdout, stderr = process.communicate(input=text.encode())
-        
-        if process.returncode == 0 and os.path.exists(output_file):
-            file_size = os.path.getsize(output_file)
-            print(f"✅ Audio generated successfully!")
-            print(f"📁 File: {output_file}")
-            print(f"📊 Size: {file_size:,} bytes")
-            return True
-        else:
-            print(f"❌ Piper failed!")
-            if stderr:
-                print(f"Error: {stderr.decode()}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
+PIPER_BIN = os.environ.get("PIPER_BIN", "")
+PIPER_MODEL = os.environ.get("PIPER_MODEL", "")
+RUN_LOCAL = os.environ.get("YOUTUBE_AI_LAB_RUN_LOCAL_TTS_TESTS") == "1"
 
-if __name__ == "__main__":
-    test_piper_tts()
-    print("="*60)
+pytestmark = pytest.mark.skipif(
+    not RUN_LOCAL,
+    reason="requires opt-in local Piper installation",
+)
+
+
+def test_piper_tts(tmp_path):
+    assert PIPER_BIN, "PIPER_BIN is required for the opt-in Piper test"
+    assert PIPER_MODEL, "PIPER_MODEL is required for the opt-in Piper test"
+    assert os.path.isfile(PIPER_BIN)
+    assert os.path.isfile(PIPER_MODEL)
+
+    output_file = tmp_path / "test_output.wav"
+    process = subprocess.run(
+        [PIPER_BIN, "--model", PIPER_MODEL, "--output_file", str(output_file)],
+        input=b"Hello from YouTube AI Lab.",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        check=False,
+    )
+
+    assert process.returncode == 0, process.stderr.decode(errors="replace")
+    assert output_file.exists()
+    assert output_file.stat().st_size > 0

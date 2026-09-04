@@ -19,15 +19,35 @@ import traceback
 app = Flask(__name__, 
             template_folder='../dashboard/templates',
             static_folder='../dashboard/static')
-app.config['SECRET_KEY'] = 'youtube-ai-lab-secret'
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.config['SECRET_KEY'] = os.environ.get('YOUTUBE_AI_LAB_SECRET_KEY') or os.urandom(32)
+
+def _env_bool(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+def _allowed_origins():
+    raw = os.environ.get('YOUTUBE_AI_LAB_ALLOWED_ORIGINS', 'http://127.0.0.1:8056,http://localhost:8056')
+    return [origin.strip() for origin in raw.split(',') if origin.strip()]
+
+ALLOWED_ORIGINS = _allowed_origins()
+CORS(app, origins=ALLOWED_ORIGINS)
+socketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS)
 
 # Load configuration
 with open('config/config.json', 'r') as f:
     config = json.load(f)
 
-DB_PATH = 'data/database/requests.db'
+# Local-first environment overrides. Committed config stays portable and safe.
+config['ollama']['host'] = os.environ.get('OLLAMA_HOST', config['ollama']['host'])
+config['piper']['binary_path'] = os.environ.get('PIPER_BIN', config['piper']['binary_path'])
+config['piper']['model_path'] = os.environ.get('PIPER_MODEL', config['piper']['model_path'])
+config['dashboard']['host'] = os.environ.get('YOUTUBE_AI_LAB_HOST', config['dashboard']['host'])
+config['dashboard']['port'] = int(os.environ.get('YOUTUBE_AI_LAB_PORT', config['dashboard']['port']))
+config['dashboard']['debug'] = _env_bool('YOUTUBE_AI_LAB_DEBUG', config['dashboard'].get('debug', False))
+
+DB_PATH = os.environ.get('YOUTUBE_AI_LAB_DB_PATH', 'data/database/requests.db')
 
 def init_db():
     """Initialize database"""
@@ -328,10 +348,18 @@ Script:"""
         return None
 
 def text_to_speech(text, output_file):
-    """Convert text to speech"""
+    """Convert text to speech using explicitly configured local Piper files."""
     try:
+        binary_path = config['piper'].get('binary_path', '')
+        model_path = config['piper'].get('model_path', '')
+        if not binary_path or not model_path:
+            print('TTS unavailable: set PIPER_BIN and PIPER_MODEL for local generation')
+            return False
+        if not os.path.isfile(binary_path) or not os.path.isfile(model_path):
+            print('TTS unavailable: configured Piper binary/model does not exist')
+            return False
         process = subprocess.Popen(
-            [config['piper']['binary_path'], '--model', config['piper']['model_path'], 
+            [binary_path, '--model', model_path, 
              '--output_file', output_file],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -466,14 +494,21 @@ def create_video(image_file, audio_file, output_file):
 if __name__ == '__main__':
     host = config['dashboard']['host']
     port = config['dashboard']['port']
+    debug = bool(config['dashboard'].get('debug', False))
+    allow_remote = _env_bool('YOUTUBE_AI_LAB_ALLOW_REMOTE', False)
+    loopback_hosts = {'127.0.0.1', 'localhost', '::1'}
+    if host not in loopback_hosts and not allow_remote:
+        raise RuntimeError(
+            'Refusing non-loopback dashboard bind. Set YOUTUBE_AI_LAB_ALLOW_REMOTE=1 only on a trusted network.'
+        )
     
     print(f"\n{'='*60}")
     print(f"🚀 YouTube AI Lab Starting...")
     print(f"{'='*60}")
-    print(f"📍 Dashboard: http://192.168.50.50:{port}")
+    print(f"📍 Dashboard: http://{host}:{port}")
     print(f"🤖 Ollama: {config['ollama']['host']}")
     print(f"🎤 Piper: {config['piper']['binary_path']}")
     print(f"📊 Database: {DB_PATH}")
     print(f"{'='*60}\n")
     
-    socketio.run(app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
