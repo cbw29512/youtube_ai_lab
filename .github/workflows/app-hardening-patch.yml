@@ -1,0 +1,88 @@
+name: YouTube AI Lab One-Time App Hardening
+
+on:
+  pull_request:
+    paths:
+      - 'backend/app.py'
+      - 'config/config.json'
+      - '.github/workflows/app-hardening-patch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event_name == 'pull_request' && github.head_ref == 'release/public-hardening' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/public-hardening
+
+      - name: Apply asserted local-security patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('backend/app.py')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          def replace_once(old, new, label):
+              global text
+              if old not in text:
+                  if new in text:
+                      return
+                  raise SystemExit(f'{label}: expected source fragment not found')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{label}: expected exactly one source fragment, found {text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "app.config['SECRET_KEY'] = 'youtube-ai-lab-secret'\nCORS(app)\nsocketio = SocketIO(app, cors_allowed_origins=\"*\")",
+              "app.config['SECRET_KEY'] = os.environ.get('YOUTUBE_AI_LAB_SECRET_KEY') or os.urandom(32)\n\ndef _env_bool(name, default=False):\n    raw = os.environ.get(name)\n    if raw is None:\n        return default\n    return raw.strip().lower() in {'1', 'true', 'yes', 'on'}\n\ndef _allowed_origins():\n    raw = os.environ.get('YOUTUBE_AI_LAB_ALLOWED_ORIGINS', 'http://127.0.0.1:8056,http://localhost:8056')\n    return [origin.strip() for origin in raw.split(',') if origin.strip()]\n\nALLOWED_ORIGINS = _allowed_origins()\nCORS(app, origins=ALLOWED_ORIGINS)\nsocketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS)",
+              'secret and CORS defaults')
+
+          replace_once(
+              "with open('config/config.json', 'r') as f:\n    config = json.load(f)\n\nDB_PATH = 'data/database/requests.db'",
+              "with open('config/config.json', 'r') as f:\n    config = json.load(f)\n\n# Local-first environment overrides. Committed config stays portable and safe.\nconfig['ollama']['host'] = os.environ.get('OLLAMA_HOST', config['ollama']['host'])\nconfig['piper']['binary_path'] = os.environ.get('PIPER_BIN', config['piper']['binary_path'])\nconfig['piper']['model_path'] = os.environ.get('PIPER_MODEL', config['piper']['model_path'])\nconfig['dashboard']['host'] = os.environ.get('YOUTUBE_AI_LAB_HOST', config['dashboard']['host'])\nconfig['dashboard']['port'] = int(os.environ.get('YOUTUBE_AI_LAB_PORT', config['dashboard']['port']))\nconfig['dashboard']['debug'] = _env_bool('YOUTUBE_AI_LAB_DEBUG', config['dashboard'].get('debug', False))\n\nDB_PATH = os.environ.get('YOUTUBE_AI_LAB_DB_PATH', 'data/database/requests.db')",
+              'environment overrides')
+
+          replace_once(
+              "def text_to_speech(text, output_file):\n    \"\"\"Convert text to speech\"\"\"\n    try:\n        process = subprocess.Popen(\n            [config['piper']['binary_path'], '--model', config['piper']['model_path'],",
+              "def text_to_speech(text, output_file):\n    \"\"\"Convert text to speech using explicitly configured local Piper files.\"\"\"\n    try:\n        binary_path = config['piper'].get('binary_path', '')\n        model_path = config['piper'].get('model_path', '')\n        if not binary_path or not model_path:\n            print('TTS unavailable: set PIPER_BIN and PIPER_MODEL for local generation')\n            return False\n        if not os.path.isfile(binary_path) or not os.path.isfile(model_path):\n            print('TTS unavailable: configured Piper binary/model does not exist')\n            return False\n        process = subprocess.Popen(\n            [binary_path, '--model', model_path,",
+              'Piper preflight')
+
+          replace_once(
+              "    host = config['dashboard']['host']\n    port = config['dashboard']['port']\n    \n    print(f\"\\n{'='*60}\")",
+              "    host = config['dashboard']['host']\n    port = config['dashboard']['port']\n    debug = bool(config['dashboard'].get('debug', False))\n    allow_remote = _env_bool('YOUTUBE_AI_LAB_ALLOW_REMOTE', False)\n    loopback_hosts = {'127.0.0.1', 'localhost', '::1'}\n    if host not in loopback_hosts and not allow_remote:\n        raise RuntimeError(\n            'Refusing non-loopback dashboard bind. Set YOUTUBE_AI_LAB_ALLOW_REMOTE=1 only on a trusted network.'\n        )\n    \n    print(f\"\\n{'='*60}\")",
+              'remote bind guard')
+
+          replace_once(
+              "    print(f\"📍 Dashboard: http://192.168.50.50:{port}\")",
+              "    print(f\"📍 Dashboard: http://{host}:{port}\")",
+              'private LAN banner')
+
+          replace_once(
+              "    socketio.run(app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)",
+              "    socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)",
+              'forced debug mode')
+
+          if text != original:
+              path.write_text(text, encoding='utf-8')
+          PY
+
+          python -m py_compile backend/app.py
+          if git diff --quiet -- backend/app.py; then
+            echo 'App hardening patch already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/app.py
+          git commit -m 'security: enforce local-first runtime boundary'
+          git push origin HEAD:release/public-hardening
